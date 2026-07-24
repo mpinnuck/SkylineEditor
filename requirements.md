@@ -1,6 +1,6 @@
 # SkylineEditor — Requirements
 
-Status: Draft v17
+Status: Draft v18
 
 IDs are stable across revisions (traceability) — grouping/order may change, but a given ID always refers to the same requirement.
 
@@ -13,10 +13,10 @@ Alt/Az data model, validation, and file import/export.
 | REQ-01 | Import Alt/Az pairs from a CSV or plain-text file. Delimiter (comma, tab, whitespace) and column order (Az,Alt vs Alt,Az) must be configurable or auto-detected; header row optional. Values are decimal degrees. |
 | REQ-36 | The app shall support a Theodolite-only workflow: import a Theodolite dataset (column mapping and session/date selection per REQ-31) directly as the working horizon curve — independent of the image import/stitching pipeline (REQ-08–REQ-13), no photos or calibration required — and export it as a Stellarium-compatible 36-point `.hrz` file (REQ-04). |
 | REQ-02 | Import a Stellarium `.hrz` file (space-delimited Az/Alt pairs, decimal degrees, per `landscape.ini` `polygonal_horizon_list` convention). |
-| REQ-03 | Save horizon data back as `.txt`, `.csv`, or `.hrz`. |
-| REQ-04 | Export a 36-point Stellarium-compatible `.hrz` file, one point every 10° of azimuth (0–350°), sampled from the current horizon curve. |
+| REQ-03 | Save horizon data back as `.txt`, `.csv`, or `.hrz`, via a Save As action that always prompts the user for a destination path and format. |
+| REQ-04 | Export a 36-point Stellarium-compatible `.hrz` file, one point every 10° of azimuth (0–350°), sampled from the current horizon curve, via a dedicated Export .hrz action distinct from Save As (REQ-03). This action writes to a fixed default location — `<root folder>/<Skyline Name>/<Skyline Name>.hrz`, inside the skyline's own folder, named after the skyline — with no destination picker; an existing file at that path is overwritten without a confirmation prompt. The exported file opens with a `# Az Alt` header comment line for N.I.N.A. (Nighttime Imaging 'N' Astronomy) compatibility, confirmed not to interfere with Stellarium's own parser. Immediately after export, the app re-reads the written file and displays a preview — a plot of the sampled Az/Alt curve, the file path, and any import warning count — in a popup dialog. A `.hrz` file can also be produced via the general Save As action (REQ-03), which does prompt for a destination; the fixed-path, no-prompt behavior above applies only to this dedicated Export .hrz action. |
 | REQ-37 | Export the stitched skyline image (REQ-11) as a Stellarium-compatible landscape ground image, aligned to the exported `.hrz` (REQ-04) using the same north/calibration reference (REQ-09/REQ-10), plus a minimal starter `landscape.ini`, so the photo and the horizon line up correctly when used together in Stellarium. |
-| REQ-05 | Save vs. Save As, with an unsaved-changes indicator. |
+| REQ-05 | Save vs. Save As, with an unsaved-changes indicator. Save (as distinct from Save As) always writes to a fixed default filename within the skyline's own folder — `horizon.csv` — regardless of what the skyline was originally imported from; Save As lets the user pick any destination path and format (.csv/.txt/.hrz). |
 | REQ-06 | Round-trip fidelity: preserve comments/metadata present in an imported file across an edit-and-resave cycle, where the target format supports it. |
 | REQ-07 | Import error reporting: user-facing message for malformed or corrupt files, rather than silent failure. |
 | REQ-14 | Validate imported data: azimuth wraps 0–360°, altitude within a defined bound, minimum point count, explicit handling of duplicate azimuth values. All angles (azimuth and altitude) are decimal degrees throughout — no DMS support. |
@@ -46,7 +46,7 @@ Panorama image import/stitching, horizon extraction, and multi-skyline site mana
 | REQ-33 | Within a skyline's folder, imported source images (REQ-08) shall be stored in an `images` subfolder. |
 | REQ-35 | Within a skyline's folder, imported reference/comparison horizon data (e.g. Theodolite raw export — REQ-31) shall be stored in a `data` subfolder. |
 | REQ-21 | Each skyline's folder shall be named after the skyline name (e.g. `BackDeck`, `FrontYard`). Any operating-system-valid folder name is accepted. |
-| REQ-22 | A list of skylines shall be presented on the left side of the UI. |
+| REQ-22 | A list of skylines shall be presented on the left side of the UI, within the main window's "Skyline" tab (see REQ-39 for the companion "Config" tab). |
 | REQ-23 | The user shall be able to add, remove, and edit skylines from that list. Rename renames the existing folder in place (not a move/recreate). Edit includes re-importing/re-stitching source images and re-marking north/calibration, not just metadata changes. |
 
 ## UI
@@ -64,7 +64,8 @@ Panorama image import/stitching, horizon extraction, and multi-skyline site mana
 
 | ID | Requirement |
 |----|-------------|
-| REQ-29 | Persist UI preferences (N/S centering, last-used directory, recent files, root folder, etc.) via the standard `load_config()` / `save_config()` pattern rather than resetting each launch. |
+| REQ-29 | Persist UI preferences (N/S centering, last-used directory, root folder, and the last-selected skyline, etc.) via the standard `load_config()` / `save_config()` pattern rather than resetting each launch. The last-selected skyline is restored and re-selected automatically at startup. See REQ-39 for the in-app editing facility for these settings. |
+| REQ-39 | The app shall provide an in-app "Config" tab (alongside the "Skyline" tab housing the skyline list, plot, and table — see REQ-22) for editing persisted settings directly: root folder (with a folder-browse control), last-used directory (with a folder-browse control), and N/S plot-centering, with Apply and Reset actions. Applying changes validates input (e.g. root folder must be non-empty) before committing and persisting via `save_config()`. |
 
 ## Open Questions
 
