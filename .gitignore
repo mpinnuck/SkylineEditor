@@ -3,6 +3,16 @@ __pycache__/
 *.pyc
 .venv/
 *.egg-info/
+.cache/
+cache/
+
+# Build artifacts
+build/
+dist/
+out/
+
+# Archives
+*.zip
 
 # Config / local data (per project convention: config-driven, JSON file)
 config.json
