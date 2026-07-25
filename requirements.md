@@ -1,6 +1,6 @@
 # SkylineEditor — Requirements
 
-Status: Draft v19
+Status: Draft v20
 
 IDs are stable across revisions (traceability) — grouping/order may change, but a given ID always refers to the same requirement.
 
@@ -48,6 +48,8 @@ Panorama image import/stitching, horizon extraction, and multi-skyline site mana
 | REQ-21 | Each skyline's folder shall be named after the skyline name (e.g. `BackDeck`, `FrontYard`). Any operating-system-valid folder name is accepted. |
 | REQ-22 | A list of skylines shall be presented on the left side of the UI, within the main window's "Skyline" tab (see REQ-39 for the companion "Config" tab). |
 | REQ-23 | The user shall be able to add, remove, and edit skylines from that list. Rename renames the existing folder in place (not a move/recreate). Edit includes re-importing/re-stitching source images and re-marking north/calibration, not just metadata changes. |
+| REQ-40 | Source images for a sweep (REQ-08) shall be captured in a disciplined incrementing sequence: for the base (0° altitude) row, the first image is near north and each subsequent image, in filename/capture order, is the azimuthal neighbor of the one before it, continuing around until the sequence returns near the starting image and the loop closes. Any additional higher-altitude row continues the same incrementing sequence immediately after the base row's last image, starting its own first image at the same near-north azimuth. This shooting discipline lets filename/capture order stand in for image adjacency, rather than requiring the app to discover topology from image content alone. |
+| REQ-41 | The app shall present the imported image pool as a grid of thumbnails -- one row per altitude sweep (REQ-08), ordered left-to-right by filename/capture order within each row per REQ-40 -- so the user can visually confirm the arrangement and drag-and-drop any thumbnail to correct its position before stitching. Stitching (REQ-11) uses this confirmed grid arrangement to determine image adjacency, rather than relying on automatic content-based topology discovery alone. |
 
 ## UI
 

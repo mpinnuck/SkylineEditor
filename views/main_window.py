@@ -13,12 +13,15 @@ from tkinter import filedialog, messagebox, ttk
 from config import AppConfig, save_config
 from fileio.errors import ImportFileError
 from models.horizon_curve import HorizonValidationError
+from viewmodels.image_stitching_viewmodel import ImageStitchingViewModel
 from viewmodels.main_viewmodel import MainViewModel
 from views.dialogs.import_dialog import ImportOptionsDialog
 from views.dialogs.theodolite_session_dialog import TheodoliteSessionDialog
 from views.export_preview_dialog import ExportPreviewDialog
 from views.horizon_plot_view import HorizonPlotView
 from views.horizon_table_view import HorizonTableView
+from views.image_arrangement_view import ImageArrangementView
+from views.image_stitching_view import ImageStitchingView
 from views.skyline_list_view import SkylineListView
 
 
@@ -43,15 +46,27 @@ class MainWindow(tk.Tk):
     def _build_layout(self) -> None:
         self.geometry(f"{self.app_config.window_width}x{self.app_config.window_height}")
 
-        self.tabs = ttk.Notebook(self)
-        self.tabs.pack(fill=tk.BOTH, expand=True)
+        outer = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashwidth=4)
+        outer.pack(fill=tk.BOTH, expand=True)
+
+        # The skyline list is a single, persistent widget shared across every
+        # tab -- not duplicated per tab -- so selection can never fall out of
+        # sync between tabs (REQ-22).
+        self.skyline_list = SkylineListView(outer, self.viewmodel, on_select=self._on_skyline_selected)
+        outer.add(self.skyline_list, minsize=180, width=200)
+
+        self.tabs = ttk.Notebook(outer)
+        outer.add(self.tabs, minsize=500)
 
         skyline_tab = ttk.Frame(self.tabs)
+        image_tab = ttk.Frame(self.tabs)
         config_tab = ttk.Frame(self.tabs)
         self.tabs.add(skyline_tab, text="Skyline")
+        self.tabs.add(image_tab, text="Image")
         self.tabs.add(config_tab, text="Config")
 
         self._build_skyline_tab(skyline_tab)
+        self._build_image_tab(image_tab)
         self._build_config_tab(config_tab)
 
     def _build_version_label(self) -> None:
@@ -61,14 +76,8 @@ class MainWindow(tk.Tk):
         self._version_label.place(relx=1.0, x=-10, y=8, anchor="ne")
 
     def _build_skyline_tab(self, parent: tk.Widget) -> None:
-        paned = tk.PanedWindow(parent, orient=tk.HORIZONTAL, sashwidth=4)
-        paned.pack(fill=tk.BOTH, expand=True)
-
-        self.skyline_list = SkylineListView(paned, self.viewmodel, on_select=self._on_skyline_selected)
-        paned.add(self.skyline_list, minsize=180, width=200)
-
-        right = tk.PanedWindow(paned, orient=tk.VERTICAL, sashwidth=4)
-        paned.add(right, minsize=500)
+        right = tk.PanedWindow(parent, orient=tk.VERTICAL, sashwidth=4)
+        right.pack(fill=tk.BOTH, expand=True)
 
         self.plot_view = HorizonPlotView(right, self.viewmodel, on_change=self._on_edit)
         right.add(self.plot_view, minsize=250, height=350)
@@ -82,6 +91,25 @@ class MainWindow(tk.Tk):
             on_export=self._export_hrz,
         )
         right.add(self.table_view, minsize=150, height=250)
+
+    def _build_image_tab(self, parent: tk.Widget) -> None:
+        """REQ-08/REQ-11: image import + stitching, scoped to whichever
+        skyline is selected in the shared list on the left."""
+        self.image_viewmodel = ImageStitchingViewModel(self.viewmodel)
+
+        sub_tabs = ttk.Notebook(parent)
+        sub_tabs.pack(fill=tk.BOTH, expand=True)
+
+        import_tab = ttk.Frame(sub_tabs)
+        arrange_tab = ttk.Frame(sub_tabs)
+        sub_tabs.add(import_tab, text="Import")
+        sub_tabs.add(arrange_tab, text="Arrange")
+
+        self.image_view = ImageStitchingView(import_tab, self.image_viewmodel)
+        self.image_view.pack(fill=tk.BOTH, expand=True)
+
+        self.image_arrangement_view = ImageArrangementView(arrange_tab, self.image_viewmodel)
+        self.image_arrangement_view.pack(fill=tk.BOTH, expand=True)
 
     def _build_config_tab(self, parent: ttk.Frame) -> None:
         parent.columnconfigure(1, weight=1)
@@ -162,6 +190,9 @@ class MainWindow(tk.Tk):
         error = self.viewmodel.load_selected_skyline_state()
         if error:
             messagebox.showwarning("Load warning", error)
+        self.image_viewmodel.on_skyline_changed()
+        self.image_view.refresh()
+        self.image_arrangement_view.refresh()
         self._refresh_all()
 
     def _update_title(self) -> None:
@@ -320,6 +351,9 @@ class MainWindow(tk.Tk):
         self.app_config.current_skyline_name = ""
         self._cfg_root_var.set(self.app_config.root_folder)
         self.skyline_list.refresh()
+        self.image_viewmodel.on_skyline_changed()
+        self.image_view.refresh()
+        self.image_arrangement_view.refresh()
         self._refresh_all()
 
     def _restore_last_state(self) -> None:
@@ -357,6 +391,9 @@ class MainWindow(tk.Tk):
             self.viewmodel.set_root_folder(new_root)
             self.app_config.current_skyline_name = ""
             self.skyline_list.refresh()
+            self.image_viewmodel.on_skyline_changed()
+            self.image_view.refresh()
+            self.image_arrangement_view.refresh()
             self._refresh_all()
 
         self.app_config.last_used_directory = last_dir or str(Path.home())
