@@ -103,3 +103,24 @@ def build_default_arrangement(image_paths: List[Path], row_sizes: List[int]) -> 
             row.append(None)
 
     return ImageGrid(rows=rows)
+
+
+def grid_to_state_rows(grid: ImageGrid) -> List[List[Optional[str]]]:
+    """Serialize a grid to filenames only (not full paths), for persisting
+    in a skyline's state.json alongside the images/ folder it refers to."""
+    return [[(path.name if path is not None else None) for path in row] for row in grid.rows]
+
+
+def grid_from_state_rows(state_rows: List[List[Optional[str]]], images_folder: Path) -> ImageGrid:
+    """Rebuild a grid from persisted filenames, resolved against
+    images_folder. A filename no longer present in the pool (removed since
+    the arrangement was saved) becomes an empty cell rather than raising --
+    the same way a short trailing row already leaves cells empty."""
+    rows: List[List[Optional[Path]]] = []
+    for state_row in state_rows:
+        row: List[Optional[Path]] = []
+        for name in state_row:
+            path = images_folder / name if name is not None else None
+            row.append(path if path is not None and path.exists() else None)
+        rows.append(row)
+    return ImageGrid(rows=rows)

@@ -12,6 +12,7 @@ from typing import Callable, List, Optional
 from imaging import arrangement, image_pool, stitcher
 from imaging.arrangement import ImageGrid, Position
 from models.skyline import Skyline
+from skyline_state import load_skyline_state, save_skyline_state
 from viewmodels.main_viewmodel import MainViewModel
 
 
@@ -26,10 +27,11 @@ class ImageStitchingViewModel:
         return self._main.current_skyline
 
     def on_skyline_changed(self) -> None:
-        """Call when the selected skyline changes, so stale state from the
-        previous skyline isn't attributed to the new one."""
+        """Call when the selected skyline changes -- drops stale state from
+        the previous skyline and restores the new one's persisted grid
+        arrangement (REQ-40, REQ-41), if it has one."""
         self.last_result = None
-        self.grid = None
+        self.grid = self._load_grid()
 
     def list_images(self) -> List[Path]:
         return image_pool.list_pool_images(self._require_skyline().images_folder)
@@ -41,6 +43,7 @@ class ImageStitchingViewModel:
     def remove_image(self, path: Path) -> None:
         image_pool.remove_pool_image(path)
         self.grid = None  # pool changed -- any existing arrangement is stale
+        self._save_grid()
 
     # -- Grid arrangement (REQ-40, REQ-41) --------------------------------------------
 
@@ -53,12 +56,31 @@ class ImageStitchingViewModel:
         stitching.
         """
         self.grid = arrangement.build_default_arrangement(self.list_images(), row_sizes)
+        self._save_grid()
         return self.grid
 
     def swap_in_grid(self, position_a: Position, position_b: Position) -> None:
         if self.grid is None:
             raise RuntimeError("No arrangement to edit -- call build_arrangement() first.")
         self.grid.swap(position_a, position_b)
+        self._save_grid()
+
+    def _load_grid(self) -> Optional[ImageGrid]:
+        skyline = self.current_skyline
+        if skyline is None:
+            return None
+        state = load_skyline_state(skyline.state_file)
+        if not state.image_grid_rows:
+            return None
+        return arrangement.grid_from_state_rows(state.image_grid_rows, skyline.images_folder)
+
+    def _save_grid(self) -> None:
+        skyline = self.current_skyline
+        if skyline is None:
+            return
+        state = load_skyline_state(skyline.state_file)
+        state.image_grid_rows = arrangement.grid_to_state_rows(self.grid) if self.grid is not None else []
+        save_skyline_state(state, skyline.state_file)
 
     def clear_stitched_output(self) -> bool:
         """Delete the derived stitched image for the current skyline.

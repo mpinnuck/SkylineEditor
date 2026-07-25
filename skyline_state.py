@@ -6,13 +6,19 @@ state handling stays centralized and easy to evolve.
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import List, Optional
 
 
 @dataclass
 class SkylineState:
     last_import_file: str = ""
+    # One row per altitude sweep (REQ-40), each cell an image filename
+    # (relative to the skyline's images/ folder) or None for an empty cell
+    # (REQ-41) -- filenames rather than full paths so this stays valid
+    # across root-folder changes and skyline renames.
+    image_grid_rows: List[List[Optional[str]]] = field(default_factory=list)
 
 
 def load_skyline_state(path: Path) -> SkylineState:

@@ -13,6 +13,7 @@ STITCHED_IMAGE_FILENAME = "stitched_skyline.png"  # REQ-11 output -- a derived a
                                                    # not a raw source image, so it sits
                                                    # at the skyline's own folder root
                                                    # alongside horizon.csv rather than in images/
+STATE_FILENAME = "state.json"
 
 
 @dataclass
@@ -37,6 +38,10 @@ class Skyline:
     @property
     def stitched_image_file(self) -> Path:
         return self.folder / STITCHED_IMAGE_FILENAME
+
+    @property
+    def state_file(self) -> Path:
+        return self.folder / STATE_FILENAME
 
     def ensure_folders(self) -> None:
         """Create the skyline's folder and its images/ and data/ subfolders

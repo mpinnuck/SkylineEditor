@@ -53,7 +53,7 @@ class MainViewModel:
 
     def save_selected_skyline_state(self, last_import_file: Optional[Path] = None) -> None:
         skyline = self._require_skyline()
-        state_path = self._state_file(skyline)
+        state_path = skyline.state_file
         state = load_skyline_state(state_path)
         if last_import_file is not None:
             state.last_import_file = str(last_import_file)
@@ -82,10 +82,6 @@ class MainViewModel:
             return None
         except (ImportFileError, HorizonValidationError) as exc:
             return f"Could not load saved plot data for '{skyline.name}': {exc}"
-
-    @staticmethod
-    def _state_file(skyline: Skyline) -> Path:
-        return skyline.folder / "state.json"
 
     def set_root_folder(self, new_root: Path) -> None:
         self.registry.set_root_folder(new_root)
