@@ -17,7 +17,6 @@ from viewmodels.image_stitching_viewmodel import ImageStitchingViewModel
 from viewmodels.main_viewmodel import MainViewModel
 from views.dialogs.import_dialog import ImportOptionsDialog
 from views.dialogs.theodolite_session_dialog import TheodoliteSessionDialog
-from views.export_preview_dialog import ExportPreviewDialog
 from views.horizon_plot_view import HorizonPlotView
 from views.horizon_table_view import HorizonTableView
 from views.image_arrangement_view import ImageArrangementView
@@ -33,6 +32,7 @@ class MainWindow(tk.Tk):
         self.version = version
         self.viewmodel = MainViewModel(config)
         self._center_on_var = tk.StringVar(value=self.app_config.center_on)
+        self.status_var = tk.StringVar(value="")
 
         self.title("SkylineEditor")
         self._build_layout()
@@ -70,6 +70,16 @@ class MainWindow(tk.Tk):
         self._build_skyline_tab(skyline_tab)
         self._build_image_tab(image_tab)
         self._build_config_tab(config_tab)
+
+        status_bar = tk.Label(
+            self,
+            textvariable=self.status_var,
+            anchor="w",
+            relief=tk.SUNKEN,
+            padx=8,
+            pady=3,
+        )
+        status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
     def _build_version_label(self) -> None:
         small_font = tkfont.nametofont("TkDefaultFont").copy()
@@ -112,7 +122,10 @@ class MainWindow(tk.Tk):
         self._image_import_tab = import_tab
 
         self.image_view = ImageStitchingView(
-            import_tab, self.image_viewmodel, on_stitched=self._on_row_stitch_complete
+            import_tab,
+            self.image_viewmodel,
+            on_stitched=self._on_row_stitch_complete,
+            on_status=self._set_status,
         )
         self.image_view.pack(fill=tk.BOTH, expand=True)
 
@@ -233,6 +246,9 @@ class MainWindow(tk.Tk):
         self.table_view.refresh()
         self.plot_view.refresh()
         self._update_title()
+
+    def _set_status(self, message: str) -> None:
+        self.status_var.set(message)
 
     def _on_edit(self) -> None:
         # Called by the plot/table views after an edit that originated on the
@@ -383,10 +399,11 @@ class MainWindow(tk.Tk):
         try:
             self.viewmodel.export_hrz(export_path)
         except HorizonValidationError as exc:
+            self._set_status(f"Export failed: {exc}")
             messagebox.showerror("Cannot export", str(exc))
             return
         self.app_config.last_used_directory = str(export_path.parent)
-        ExportPreviewDialog(self, export_path)
+        self._set_status(f"Exported .hrz to {export_path}")
 
     def _set_root_folder(self) -> None:
         folder = filedialog.askdirectory(initialdir=self.app_config.root_folder)

@@ -21,10 +21,11 @@ _FILETYPES = [("Images", "*.jpg *.jpeg *.png *.tif *.tiff"), ("All files", "*.*"
 
 
 class ImageStitchingView(tk.Frame):
-    def __init__(self, parent, viewmodel, on_stitched=None):
+    def __init__(self, parent, viewmodel, on_stitched=None, on_status=None):
         super().__init__(parent)
         self.viewmodel = viewmodel
         self.on_stitched = on_stitched or (lambda: None)
+        self.on_status = on_status or (lambda _message: None)
         self._preview_photo = None       # kept to stop Tk garbage-collecting it
         self._current_pil_image = None   # full-res PIL image behind the current preview
         self._source_images = []
@@ -76,6 +77,10 @@ class ImageStitchingView(tk.Frame):
 
         self.refresh()
 
+    def _set_status(self, message: str) -> None:
+        self.status_var.set(message)
+        self.on_status(message)
+
     # -- Refresh (call on skyline selection change / tab switch) ------------------------
 
     def refresh(self) -> None:
@@ -83,12 +88,12 @@ class ImageStitchingView(tk.Frame):
         self._source_images = []
         skyline = self.viewmodel.current_skyline
         if skyline is None:
-            self.status_var.set("No skyline selected.")
+            self._set_status("No skyline selected.")
             self._set_preview(None)
             self._set_source_popup_image(None)
             return
 
-        self.status_var.set("")
+        self._set_status("")
         self._source_images = self.viewmodel.list_images()
         for path in self._source_images:
             self.listbox.insert(tk.END, path.name)
@@ -134,9 +139,9 @@ class ImageStitchingView(tk.Frame):
         deleted = self.viewmodel.clear_stitched_output()
         self._set_preview(None)
         if deleted:
-            self.status_var.set("Deleted stitched output. Ready to stitch again.")
+            self._set_status("Deleted stitched output. Ready to stitch again.")
         else:
-            self.status_var.set("No stitched output file to delete.")
+            self._set_status("No stitched output file to delete.")
 
     def _on_source_selection_changed(self, _event=None) -> None:
         self._update_source_popup_image_from_selection()
@@ -235,7 +240,7 @@ class ImageStitchingView(tk.Frame):
             messagebox.showinfo("No skyline selected", "Select or create a skyline first.")
             return False
         if self._stitch_in_progress:
-            self.status_var.set("Stitch already in progress...")
+            self._set_status("Stitch already in progress...")
             return False
         if self.viewmodel.grid is None:
             messagebox.showinfo(
@@ -253,7 +258,7 @@ class ImageStitchingView(tk.Frame):
         self.stitch_button.config(state=tk.DISABLED)
         self.clear_output_button.config(state=tk.DISABLED)
         self.stitch_progress.start(12)
-        self.status_var.set("Stitching... this can take a while.")
+        self._set_status("Stitching... this can take a while.")
         self.update_idletasks()
 
         worker = threading.Thread(target=self._run_stitch_worker, daemon=True)
@@ -279,7 +284,7 @@ class ImageStitchingView(tk.Frame):
             return
 
         if outcome == "progress":
-            self.status_var.set(payload)
+            self._set_status(payload)
             if self.winfo_exists():
                 self.after(100, self._poll_stitch_result)
             return
@@ -294,21 +299,21 @@ class ImageStitchingView(tk.Frame):
 
         if outcome == "error":
             err = payload
-            self.status_var.set(str(err))
+            self._set_status(str(err))
             title = "Stitching failed" if isinstance(err, StitchError) else "Stitching error"
             messagebox.showerror(title, str(err))
             return
 
         result = payload
         row_summary = ", ".join(f"row {r.row_index}: {r.image_count}" for r in result.row_results)
-        self.status_var.set(f"Stitched {result.image_count} image(s) successfully ({row_summary}).")
+        self._set_status(f"Stitched {result.image_count} image(s) successfully ({row_summary}).")
         self.on_stitched()
 
         skyline = self.viewmodel.current_skyline
         if skyline is None:
             return
         if skyline.name != self._stitch_target_name:
-            self.status_var.set(
+            self._set_status(
                 f"Stitched images for '{self._stitch_target_name}'. Re-select that skyline to view its preview."
             )
             return
@@ -321,7 +326,7 @@ class ImageStitchingView(tk.Frame):
             image = Image.open(path)
             image.load()
         except OSError as exc:
-            self.status_var.set(f"Could not preview stitched image: {exc}")
+            self._set_status(f"Could not preview stitched image: {exc}")
             self._set_preview(None)
             return
         self._set_preview(image)

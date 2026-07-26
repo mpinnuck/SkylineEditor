@@ -38,7 +38,7 @@ class ExportPreviewDialog(tk.Toplevel):
         ax.set_xlim(0, 360)
         ax.set_xlabel("Azimuth (deg)")
         ax.set_ylabel("Altitude (deg)")
-        ax.set_title("Exported .hrz Sampled Curve")
+        ax.set_title("Exported .hrz Horizon Curve")
         ax.grid(True, alpha=0.3)
 
         canvas = FigureCanvasTkAgg(figure, master=self)

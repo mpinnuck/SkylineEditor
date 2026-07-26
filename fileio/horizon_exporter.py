@@ -6,8 +6,6 @@ from typing import List
 
 from models.horizon_curve import HorizonCurve
 
-HRZ_EXPORT_STEP_DEG = 10.0  # REQ-04: one point every 10 deg, 0-350 (36 points)
-
 
 def _write_with_preserved_comments(path: Path, curve: HorizonCurve, data_lines: List[str]) -> None:
     """REQ-06 round-trip: comments/metadata captured on import are re-emitted
@@ -30,9 +28,9 @@ def export_csv(path: Path, curve: HorizonCurve) -> None:
 
 
 def export_hrz(path: Path, curve: HorizonCurve) -> None:
-    """36-point Stellarium-compatible .hrz, sampled every 10 deg (REQ-04)."""
-    sampled = curve.resample(step_deg=HRZ_EXPORT_STEP_DEG, start_deg=0.0)
-    lines = [f"{p.azimuth_deg:.2f} {p.altitude_deg:.2f}" for p in sampled]
+    """Stellarium-compatible .hrz export using every stored horizon point."""
+    points = sorted(curve.points, key=lambda p: p.normalized_azimuth())
+    lines = [f"{p.azimuth_deg:.2f} {p.altitude_deg:.2f}" for p in points]
     # N.I.N.A. expects an Az/Alt marker comment line.
     comments = [c for c in curve.preserved_comments if c.strip().upper() not in {"# AZ ALT", "# AZ ALT".title()}]
     path.write_text("\n".join(["# Az Alt", *comments, *lines]) + "\n", encoding="utf-8")
