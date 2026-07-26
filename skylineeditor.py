@@ -11,7 +11,7 @@ from __future__ import annotations
 from config import load_config
 from views.main_window import MainWindow
 
-VERSION = "0.3.0"
+VERSION = "0.2.0"
 
 
 def main() -> None:

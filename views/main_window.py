@@ -22,6 +22,7 @@ from views.horizon_plot_view import HorizonPlotView
 from views.horizon_table_view import HorizonTableView
 from views.image_arrangement_view import ImageArrangementView
 from views.image_stitching_view import ImageStitchingView
+from views.row_adjust_view import RowAdjustView
 from views.skyline_list_view import SkylineListView
 
 
@@ -64,6 +65,7 @@ class MainWindow(tk.Tk):
         self.tabs.add(skyline_tab, text="Skyline")
         self.tabs.add(image_tab, text="Image")
         self.tabs.add(config_tab, text="Config")
+        self._image_tab = image_tab
 
         self._build_skyline_tab(skyline_tab)
         self._build_image_tab(image_tab)
@@ -99,17 +101,40 @@ class MainWindow(tk.Tk):
 
         sub_tabs = ttk.Notebook(parent)
         sub_tabs.pack(fill=tk.BOTH, expand=True)
+        self._image_sub_tabs = sub_tabs
 
         import_tab = ttk.Frame(sub_tabs)
         arrange_tab = ttk.Frame(sub_tabs)
+        adjust_tab = ttk.Frame(sub_tabs)
         sub_tabs.add(import_tab, text="Import")
         sub_tabs.add(arrange_tab, text="Arrange")
+        sub_tabs.add(adjust_tab, text="Adjust")
+        self._image_import_tab = import_tab
 
-        self.image_view = ImageStitchingView(import_tab, self.image_viewmodel)
+        self.image_view = ImageStitchingView(
+            import_tab, self.image_viewmodel, on_stitched=self._on_row_stitch_complete
+        )
         self.image_view.pack(fill=tk.BOTH, expand=True)
 
         self.image_arrangement_view = ImageArrangementView(arrange_tab, self.image_viewmodel)
         self.image_arrangement_view.pack(fill=tk.BOTH, expand=True)
+
+        self.row_adjust_view = RowAdjustView(
+            adjust_tab, self.image_viewmodel, on_restitch_requested=self._restitch_from_adjust
+        )
+        self.row_adjust_view.pack(fill=tk.BOTH, expand=True)
+
+    def _restitch_from_adjust(self) -> bool:
+        """When Re-stitch is clicked in Adjust, bring the user to Import
+        so the stitch progress/status is immediately visible, then start."""
+        self.tabs.select(self._image_tab)
+        self._image_sub_tabs.select(self._image_import_tab)
+        return self.image_view.trigger_stitch()
+
+    def _on_row_stitch_complete(self) -> None:
+        """A stitch just finished (from any trigger point) -- refresh the
+        row-position adjustment view so it reflects the new result."""
+        self.row_adjust_view.refresh()
 
     def _build_config_tab(self, parent: ttk.Frame) -> None:
         parent.columnconfigure(1, weight=1)
@@ -193,6 +218,7 @@ class MainWindow(tk.Tk):
         self.image_viewmodel.on_skyline_changed()
         self.image_view.refresh()
         self.image_arrangement_view.refresh()
+        self.row_adjust_view.refresh()
         self._refresh_all()
 
     def _update_title(self) -> None:
@@ -227,16 +253,19 @@ class MainWindow(tk.Tk):
         )
         if not path:
             return
+        selected_path = Path(path)
+        if self._maybe_import_as_theodolite(selected_path):
+            return
         self.app_config.last_used_directory = str(Path(path).parent)
         options = ImportOptionsDialog.ask(self)
         if options is None:
             return
         try:
-            result = self.viewmodel.import_alt_az(Path(path), **options)
+            result = self.viewmodel.import_alt_az(selected_path, **options)
         except (ImportFileError, HorizonValidationError) as exc:
             messagebox.showerror("Import failed", str(exc))
             return
-        self.viewmodel.save_selected_skyline_state(last_import_file=Path(path))
+        self.viewmodel.save_selected_skyline_state(last_import_file=selected_path)
         self._report_import_warnings(result)
         self._refresh_all()
 
@@ -267,8 +296,11 @@ class MainWindow(tk.Tk):
         )
         if not path:
             return
+        self._import_theodolite_from_path(Path(path))
+
+    def _import_theodolite_from_path(self, path: Path) -> None:
         try:
-            sessions = self.viewmodel.list_theodolite_sessions(Path(path))
+            sessions = self.viewmodel.list_theodolite_sessions(path)
         except ImportFileError as exc:
             messagebox.showerror("Import failed", str(exc))
             return
@@ -276,13 +308,26 @@ class MainWindow(tk.Tk):
         if session is None:
             return
         try:
-            result = self.viewmodel.import_theodolite(Path(path), session)
+            result = self.viewmodel.import_theodolite(path, session)
         except (ImportFileError, HorizonValidationError) as exc:
             messagebox.showerror("Import failed", str(exc))
             return
-        self.viewmodel.save_selected_skyline_state(last_import_file=Path(path))
+        self.viewmodel.save_selected_skyline_state(last_import_file=path)
         self._report_import_warnings(result)
         self._refresh_all()
+
+    def _maybe_import_as_theodolite(self, path: Path) -> bool:
+        """Silently redirect to the dedicated Theodolite workflow when a
+        Theodolite export was picked under generic Alt/Az import -- the
+        generic importer can't parse a 14-column Theodolite file as
+        2-column Alt/Az data, so this avoids that failure entirely rather
+        than asking first."""
+        from fileio import theodolite_importer
+
+        if not theodolite_importer.is_theodolite_export(path):
+            return False
+        self._import_theodolite_from_path(path)
+        return True
 
     def _report_import_warnings(self, result) -> None:
         if not result.warnings:
@@ -354,6 +399,7 @@ class MainWindow(tk.Tk):
         self.image_viewmodel.on_skyline_changed()
         self.image_view.refresh()
         self.image_arrangement_view.refresh()
+        self.row_adjust_view.refresh()
         self._refresh_all()
 
     def _restore_last_state(self) -> None:
@@ -394,6 +440,7 @@ class MainWindow(tk.Tk):
             self.image_viewmodel.on_skyline_changed()
             self.image_view.refresh()
             self.image_arrangement_view.refresh()
+            self.row_adjust_view.refresh()
             self._refresh_all()
 
         self.app_config.last_used_directory = last_dir or str(Path.home())

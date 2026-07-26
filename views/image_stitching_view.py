@@ -21,9 +21,10 @@ _FILETYPES = [("Images", "*.jpg *.jpeg *.png *.tif *.tiff"), ("All files", "*.*"
 
 
 class ImageStitchingView(tk.Frame):
-    def __init__(self, parent, viewmodel):
+    def __init__(self, parent, viewmodel, on_stitched=None):
         super().__init__(parent)
         self.viewmodel = viewmodel
+        self.on_stitched = on_stitched or (lambda: None)
         self._preview_photo = None       # kept to stop Tk garbage-collecting it
         self._current_pil_image = None   # full-res PIL image behind the current preview
         self._source_images = []
@@ -224,15 +225,25 @@ class ImageStitchingView(tk.Frame):
         self._source_popup_photo = ImageTk.PhotoImage(thumbnail)
         self._source_popup_label.config(image=self._source_popup_photo, text="")
 
-    def _stitch(self) -> None:
+    def trigger_stitch(self) -> bool:
+        """Public entry point for other views (e.g. the row-adjustment tab)
+        to run the same threaded stitch this view's own Stitch button uses."""
+        return self._stitch()
+
+    def _stitch(self) -> bool:
         if self.viewmodel.current_skyline is None:
             messagebox.showinfo("No skyline selected", "Select or create a skyline first.")
-            return
+            return False
         if self._stitch_in_progress:
-            return
-        if len(self.viewmodel.list_images()) < 2:
-            messagebox.showinfo("Not enough images", "Import at least 2 overlapping images first.")
-            return
+            self.status_var.set("Stitch already in progress...")
+            return False
+        if self.viewmodel.grid is None:
+            messagebox.showinfo(
+                "No arrangement yet",
+                "Arrange the images (Arrange tab) before stitching -- "
+                "stitching now uses your confirmed row order, not raw import order.",
+            )
+            return False
 
         self._stitch_target_name = self.viewmodel.current_skyline.name
         self._stitch_in_progress = True
@@ -248,6 +259,7 @@ class ImageStitchingView(tk.Frame):
         worker = threading.Thread(target=self._run_stitch_worker, daemon=True)
         worker.start()
         self.after(100, self._poll_stitch_result)
+        return True
 
     def _run_stitch_worker(self) -> None:
         try:
@@ -288,20 +300,9 @@ class ImageStitchingView(tk.Frame):
             return
 
         result = payload
-
-        if result.orphan_paths:
-            names = ", ".join(p.name for p in result.orphan_paths)
-            self.status_var.set(
-                f"Stitched {len(result.matched_paths)} image(s). "
-                f"Could not match: {names} -- reshoot/replace and try again."
-            )
-            messagebox.showwarning(
-                "Some images didn't match",
-                "These images couldn't be matched to the rest and were left out "
-                f"of the stitch:\n\n{names}\n\nReshoot or replace them and stitch again.",
-            )
-        else:
-            self.status_var.set(f"Stitched {len(result.matched_paths)} image(s) successfully.")
+        row_summary = ", ".join(f"row {r.row_index}: {r.image_count}" for r in result.row_results)
+        self.status_var.set(f"Stitched {result.image_count} image(s) successfully ({row_summary}).")
+        self.on_stitched()
 
         skyline = self.viewmodel.current_skyline
         if skyline is None:

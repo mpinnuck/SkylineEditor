@@ -136,3 +136,17 @@ def _require_columns(fieldnames: Optional[List[str]], path: Path) -> None:
         raise ImportFileError(
             f"'{path.name}' is missing expected Theodolite column(s): {', '.join(missing)}."
         )
+
+
+def is_theodolite_export(path: Path) -> bool:
+    """Best-effort header check used by the UI to route files to the
+    Theodolite session workflow when users select the wrong import action."""
+    try:
+        reader, handle = _open_reader(path)
+    except OSError:
+        return False
+    try:
+        fieldnames = reader.fieldnames or []
+        return all(column in fieldnames for column in _REQUIRED_COLUMNS)
+    finally:
+        handle.close()

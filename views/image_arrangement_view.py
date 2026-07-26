@@ -43,7 +43,13 @@ class ImageArrangementView(tk.Frame):
         # than the visible window (e.g. REQ-40's 14+ image base row).
         outer = tk.Frame(self)
         outer.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
-        self._canvas = tk.Canvas(outer, highlightthickness=0)
+        # Fixed initial size, deliberately NOT sized to fit all columns --
+        # ttk.Notebook computes its own requested size from the largest
+        # requested size across every tab (even ones not currently shown),
+        # so an unbounded canvas here silently inflates the whole window's
+        # initial size to fit a 15+ column grid. Scrolling handles
+        # anything wider than this.
+        self._canvas = tk.Canvas(outer, highlightthickness=0, width=700, height=220)
         hbar = ttk.Scrollbar(outer, orient=tk.HORIZONTAL, command=self._canvas.xview)
         vbar = ttk.Scrollbar(outer, orient=tk.VERTICAL, command=self._canvas.yview)
         self._canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
@@ -97,6 +103,10 @@ class ImageArrangementView(tk.Frame):
 
     def refresh(self) -> None:
         """Call on skyline selection change / tab switch."""
+        if self.viewmodel.grid is not None:
+            sizes = [len(self.viewmodel.grid.row_images(r)) for r in range(self.viewmodel.grid.row_count)]
+            self.row_sizes_var.set(", ".join(str(n) for n in sizes))
+
         if self.viewmodel.grid is None:
             self._clear_grid()
             skyline = self.viewmodel.current_skyline
